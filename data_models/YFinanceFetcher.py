@@ -89,7 +89,7 @@ class YFinanceFetcher(DataFetcher):
         return tickers, dfs
 
     def get_ticker_dfs(self, start, end, obj_path):
-        dataset_path = os.path.join(os.getcwd(), obj_path)
+        dataset_path = os.path.join(os.getcwd(), "Data", obj_path)
         dataset_exists = os.path.exists(dataset_path)
 
         crypto_asset_config = "yfinance_crypto_asset_config.json"
@@ -101,7 +101,7 @@ class YFinanceFetcher(DataFetcher):
                 tickers, start, end, granularity="1d"
             )
             new_ticker_dfs = {ticker: df for ticker, df in zip(new_tickers, new_dfs)}
-            save_pickle(obj_path, (tickers, new_ticker_dfs))
+            save_pickle(dataset_path, (tickers, new_ticker_dfs))
             return new_tickers, new_ticker_dfs
         # If .obj file exists, load existing data
         else:
@@ -120,7 +120,7 @@ class YFinanceFetcher(DataFetcher):
                 for ticker in new_tickers:
                     old_ticker_dfs[ticker] = new_ticker_dfs[ticker]
 
-                save_pickle(obj_path, (list(old_ticker_dfs.keys()), old_ticker_dfs))
+                save_pickle(dataset_path, (list(old_ticker_dfs.keys()), old_ticker_dfs))
             last_date_index = old_ticker_dfs["BTC-USD"].index[-1]
             last_date = last_date_index.strftime("%Y-%m-%d")
             today_date = datetime.now(pytz.utc).strftime("%Y-%m-%d")
@@ -144,5 +144,5 @@ class YFinanceFetcher(DataFetcher):
                     old_ticker_dfs[asset_pair] = pd.concat(
                         [old_ticker_dfs[asset_pair], new_ticker_dfs[asset_pair]]
                     )
-                save_pickle(obj_path, (list(old_ticker_dfs.keys()), old_ticker_dfs))
+                save_pickle(dataset_path, (list(old_ticker_dfs.keys()), old_ticker_dfs))
                 return list(old_ticker_dfs.keys()), old_ticker_dfs

@@ -34,42 +34,10 @@ class Alpha:
                 self.dfs[inst]["close"].shift(1)
             )
             self.dfs[inst]["log_ret"] = self.dfs[inst]["log_ret"].bfill().ffill()
-
-            inst_log_vol = (
-                np.log(self.dfs[inst]["close"] / self.dfs[inst]["close"].shift(1))
-                .rolling(30)
-                .std()
-            )
-            self.dfs[inst]["log_vol"] = inst_log_vol
-            self.dfs[inst]["log_vol"] = self.dfs[inst]["log_vol"].ffill().fillna(0)
-            self.dfs[inst]["log_vol"] = np.where(
-                self.dfs[inst]["log_vol"] < 0.005, 0.005, self.dfs[inst]["log_vol"]
-            )
-
-            # 7 day returns
-            self.dfs[inst]["ret_7_day"] = -1 + self.dfs[inst]["close"] / self.dfs[inst][
-                "close"
-            ].shift(7)
-
-            # 30 day returns
-            self.dfs[inst]["ret_30_day"] = -1 + self.dfs[inst]["close"] / self.dfs[
-                inst
-            ]["close"].shift(30)
-
         return
 
-    def _get_alpha_beta(self, inst, window, relative_to="BTC-USD", updays=0):
-        y = self.dfs[inst]["log_ret"]
-        x_other = self.dfs[relative_to]["log_ret"]
-        x_other = x_other.rename("log_ret_other")
-
-        if updays != 0:
-            x_other = x_other.loc[(updays * x_other) > 0]
-
-        # for aligning on time merge and then take individual series again
-        temp_merged = pd.concat([y, x_other], join="inner", axis=1)
-        y = temp_merged["log_ret"]
-        x_other = temp_merged["log_ret_other"]
+    def _get_alpha_beta(self, inst, window, relative_to="ETH-USD"):
+        x_other, y = self._format_x_other_and_y(inst, relative_to)
 
         while x_other.shape[0] <= window:
             window = int(window / 2)
@@ -78,14 +46,8 @@ class Alpha:
 
         return model_btc.alpha, model_btc.beta
 
-    def _get_alpha_beta_no_rolling(self, inst, relative_to="BTC-USD"):
-        y = self.dfs[inst]["log_ret"]
-        x_other = self.dfs[relative_to]["log_ret"]
-        x_other = x_other.rename("log_ret_other")
-
-        temp_merged = pd.concat([y, x_other], join="inner", axis=1)
-        y = temp_merged["log_ret"]
-        x_other = temp_merged["log_ret_other"]
+    def _get_alpha_beta_no_rolling(self, inst, relative_to="ETH-USD"):
+        x_other, y = self._format_x_other_and_y(inst, relative_to)
 
         # Fit OLS model
         X = sm.add_constant(x_other)
@@ -93,33 +55,26 @@ class Alpha:
 
         return model.params.iloc[0], model.params.iloc[1]
 
+    def _format_x_other_and_y(self, inst, relative_to):
+        y = self.dfs[inst]["log_ret"]
+        x_other = self.dfs[relative_to]["log_ret"]
+        x_other = x_other.rename("log_ret_other")
+
+        # for aligning on time merge and then take individual series again
+        temp_merged = pd.concat([y, x_other], join="inner", axis=1)
+        y = temp_merged["log_ret"]
+        x_other = temp_merged["log_ret_other"]
+
+        return x_other, y
+
     def post_compute(self):
         for inst in self.insts:
-            # alpha beta calculation to BTC
+            # alpha & beta calculation to ETH
             if self.use_rolling:
                 alpha, beta = self._get_alpha_beta(inst, self.window)
             else:
                 alpha, beta = self._get_alpha_beta_no_rolling(inst)
 
-            # alpha factors simple
-            self.dfs[inst]["alpha_btc"] = alpha
-
-            # beta to btc and eth
-            self.dfs[inst]["beta_btc"] = beta
-
-            # alpha beta calculation to ETH
-            if self.use_rolling:
-                alpha, beta = self._get_alpha_beta(
-                    inst, self.window, relative_to="ETH-USD"
-                )
-            else:
-                alpha, beta = self._get_alpha_beta_no_rolling(
-                    inst, relative_to="ETH-USD"
-                )
-
-            # alpha factors simple
             self.dfs[inst]["alpha_eth"] = alpha
-
-            # beta to btc and eth
             self.dfs[inst]["beta_eth"] = beta
         return

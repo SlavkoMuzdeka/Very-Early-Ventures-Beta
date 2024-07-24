@@ -2,6 +2,7 @@ import pytz
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 
 from alpha import Alpha
 from datetime import datetime
@@ -71,8 +72,11 @@ def show_alpha_vs_beta(df):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def show_histogram_and_kde(dfs, labels, metric):
+def show_histogram_and_kde(dfs, labels, metric, decimal_places=2):
     st.divider()
+
+    colors = ["aqua", "mediumorchid", "lightcoral"]
+
     # Combine all DataFrames into one with an additional column to distinguish them
     combined_df = (
         pd.concat(dfs, keys=labels).reset_index(level=1, drop=True).reset_index()
@@ -83,33 +87,67 @@ def show_histogram_and_kde(dfs, labels, metric):
         combined_df,
         x=metric,
         color="Dataset",
-        marginal="violin",
         opacity=0.75,
-        title=f"Distribution of {metric} Values",
+        histnorm="probability density",
+        title=f"Probability Density Distribution of {metric} Values",
         labels={metric: metric, "Dataset": "Dataset"},
     )
+    for i, trace in enumerate(fig.data):
+        trace.update(marker_color=colors[i % len(colors)])
+
+    # Add vertical lines for mean and median
+    for index, df in enumerate(dfs):
+        mean_value = df[metric].mean()
+        median_value = df[metric].median()
+        variance_value = df[metric].var()
+
+        fig.add_vline(
+            x=median_value,
+            line_dash="dash",
+            line_color=colors[index],
+            annotation_text="",
+            annotation_font_size=10,
+        )
+
+        # Add hover text with statistics
+        fig.add_scatter(
+            x=[median_value],
+            y=[0],
+            mode="markers",
+            marker=dict(color=colors[index], symbol="x", size=10),
+            text=[
+                f"Median: {median_value:.{decimal_places}f}<br>Mean: {mean_value:.{decimal_places}f}<br>Variance: {variance_value:.{decimal_places}f}"
+            ],
+            hovertemplate=(
+                f"Median: {median_value:.{decimal_places}f}<br>"
+                f"Mean: {mean_value:.{decimal_places}f}<br>"
+                f"Variance: {variance_value:.{decimal_places}f}<br>"
+                f"<extra>Median Value</extra>"
+            ),
+            showlegend=False,
+        )
 
     fig.update_layout(
         xaxis_title=metric,
-        yaxis_title="Frequency",
-        title=f"Distribution of {metric} Values",
-        height=650,  # Set the height of the plot
+        yaxis_title="Probability Density",
+        title=f"Probability Density Distribution of {metric} Values",
+        height=650,
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
 
-def show_alpha_beta_line_plots(ticker, corr_to, dfs_path):
+def show_alpha_beta_line_plots(ticker, dfs_path):
     dfs = load_pickle(dfs_path)
 
-    alpha_col = f"alpha_{corr_to.lower()}"
+    alpha_col = "alpha_eth"
     show_line_plot(
         x=dfs[ticker].index,
         y=dfs[ticker][alpha_col],
         title="Alpha",
     )
 
-    beta_col = f"beta_{corr_to.lower()}"
+    beta_col = "beta_eth"
     show_line_plot(
         x=dfs[ticker].index,
         y=dfs[ticker][beta_col],
