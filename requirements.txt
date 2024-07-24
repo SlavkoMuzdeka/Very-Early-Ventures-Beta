@@ -1,0 +1,6 @@
+streamlit
+pyfinance
+dill
+plotly-express
+numpy==1.26.4
+yfinance
