@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 
 from utils.alpha_utils import save_pickle
@@ -29,17 +30,23 @@ if (
         df = get_alpha_beta_df(alpha_60)
         st.session_state.alpha_60_rolling_df = df
         st.session_state.tokens = alpha_60.insts
-        save_pickle("Data/alpha_60_dfs.obj", alpha_60.dfs)
+
+        data_path = os.path.join(os.getcwd(), "Data", "alpha_60_dfs.obj")
+        save_pickle(data_path, alpha_60.dfs)
 
         alpha_365 = create_alpha(tickers, ticker_dfs, window=365, use_rolling=True)
         df = get_alpha_beta_df(alpha_365)
         st.session_state.alpha_365_rolling_df = df
-        save_pickle("Data/alpha_365_dfs.obj", alpha_365.dfs)
+
+        data_path = os.path.join(os.getcwd(), "Data", "alpha_365_dfs.obj")
+        save_pickle(data_path, alpha_365.dfs)
 
         alpha_no_rolling = create_alpha(tickers, ticker_dfs, use_rolling=False)
         df = get_alpha_beta_df(alpha_no_rolling)
         st.session_state.alpha_no_rolling_df = df
-        save_pickle("Data/alpha_no_rolling_dfs.obj", alpha_no_rolling.dfs)
+
+        data_path = os.path.join(os.getcwd(), "Data", "alpha_no_rolling_dfs.obj")
+        save_pickle(data_path, alpha_no_rolling.dfs)
 
 
 selected_period = st.selectbox(
@@ -58,9 +65,11 @@ period_mapping_df = {
 }
 
 dataset_mapping = {
-    "60 Days Rolling": "Data/alpha_60_dfs.obj",
-    "365 Days Rolling": "Data/alpha_365_dfs.obj",
-    "Full Period (no rolling)": "Data/alpha_no_rolling_dfs.obj",
+    "60 Days Rolling": os.path.join(os.getcwd(), "Data", "alpha_60_dfs.obj"),
+    "365 Days Rolling": os.path.join(os.getcwd(), "Data", "alpha_365_dfs.obj"),
+    "Full Period (no rolling)": os.path.join(
+        os.getcwd(), "Data", "alpha_no_rolling_dfs.obj"
+    ),
 }
 
 show_alpha_vs_beta(period_mapping_df.get(selected_period))
