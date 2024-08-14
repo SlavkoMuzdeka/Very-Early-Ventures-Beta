@@ -1,6 +1,8 @@
 import os
+import pandas as pd
 import streamlit as st
 
+from typing import List, Dict, Tuple
 from utils.alpha_utils import save_pickle
 from utils.streamlit_utils import (
     create_alpha,
@@ -19,7 +21,24 @@ st.set_page_config(
 st.title("📊 Very Early Ventures - Beta Analysis")
 
 
-def calculate_and_store_alpha(tickers, ticker_dfs, window=None, use_rolling=True):
+def calculate_and_store_alpha(
+    tickers: List[str],
+    ticker_dfs: Dict[str, pd.DataFrame],
+    window=None,
+    use_rolling=True,
+) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Calculates alpha and beta values for given tickers and stores the results.
+
+    Args:
+        tickers (List[str]): A list of ticker symbols.
+        ticker_dfs (Dict[str, pd.DataFrame]): A dictionary where the keys are tickers and the values are DataFrames with historical data.
+        window (Optional[int, None]): The window size for calculating alpha and beta. If None, no rolling is used.
+        use_rolling (bool): Whether to use rolling calculations for alpha and beta.
+
+    Returns:
+        Tuple[pd.DataFrame, List[str]]: A tuple containing a DataFrame with alpha and beta values, and a list of ticker symbols.
+    """
     alpha = create_alpha(tickers, ticker_dfs, window=window, use_rolling=use_rolling)
     df = get_alpha_beta_df(alpha)
     data_path = os.path.join(
@@ -84,9 +103,9 @@ show_histogram_and_kde(
     decimal_places=5,
 )
 
-symbols = st.session_state.tokens
+symbols: List[str] = st.session_state.tokens
 symbols = [symbol for symbol in symbols if not symbol == "ETH-USD"]
 
 st.divider()
-token = st.selectbox("Select crypto asset", symbols)
+token: str = st.selectbox("Select crypto asset", symbols)
 show_alpha_beta_line_plots(token, dataset_mapping.get(selected_period))
