@@ -3,14 +3,13 @@ import pandas as pd
 import streamlit as st
 
 from typing import List, Dict, Tuple
-from utils.alpha_utils import save_pickle
+from data_models.YFinanceFetcher import YFinanceFetcher
+from utils.alpha_utils import create_alpha, get_alpha_beta_df
+from utils.yfinance_fetcher_utils import save_pickle, get_tickers_and_ticker_dfs
 from utils.streamlit_utils import (
-    create_alpha,
-    get_alpha_beta_df,
+    show_kde,
     show_alpha_vs_beta,
-    show_histogram_and_kde,
-    show_alpha_beta_line_plots,
-    get_tickers_and_ticker_dfs,
+    show_timeseries_plot,
 )
 
 # --- Page configuration ---
@@ -54,7 +53,8 @@ if (
     or "alpha_no_rolling_df" not in st.session_state
 ):
     with st.spinner("Calculating statistics..."):
-        tickers, ticker_dfs = get_tickers_and_ticker_dfs()
+        data_fetcher = YFinanceFetcher()
+        tickers, ticker_dfs = get_tickers_and_ticker_dfs(data_fetcher)
 
         st.session_state.alpha_60_rolling_df, st.session_state.tokens = (
             calculate_and_store_alpha(tickers, ticker_dfs, window=60, use_rolling=True)
@@ -91,21 +91,20 @@ dataset_mapping = {
 }
 
 show_alpha_vs_beta(period_mapping_df.get(selected_period))
-show_histogram_and_kde(
-    dfs=[alpha_60_rolling_df, alpha_365_rolling_df, alpha_no_rolling_df],
-    labels=["60 Days Rolling", "365 Days Rolling", "Full Period (no rolling)"],
-    metric="Beta",
-)
-show_histogram_and_kde(
-    dfs=[alpha_60_rolling_df, alpha_365_rolling_df, alpha_no_rolling_df],
-    labels=["60 Days Rolling", "365 Days Rolling", "Full Period (no rolling)"],
-    metric="Alpha",
-    decimal_places=5,
-)
-
-symbols: List[str] = st.session_state.tokens
-symbols = [symbol for symbol in symbols if not symbol == "ETH-USD"]
 
 st.divider()
-token: str = st.selectbox("Select crypto asset", symbols)
-show_alpha_beta_line_plots(token, dataset_mapping.get(selected_period))
+tokens: List[str] = st.session_state.tokens
+tokens = [token for token in tokens if not token == "ETH-USD"]
+
+selected_tokens = st.multiselect(
+    "Select crypto asset", default="BTC-USD", options=tokens, max_selections=5
+)
+show_timeseries_plot(selected_tokens, dataset_mapping.get(selected_period))
+
+st.divider()
+st.subheader("KDE Analysis Across Multiple Time Periods")
+show_kde(
+    dfs=[alpha_60_rolling_df, alpha_365_rolling_df, alpha_no_rolling_df],
+    labels=["60 Days Rolling", "365 Days Rolling", "Full Period (no rolling)"],
+    metrics=["Beta", "Alpha"],
+)

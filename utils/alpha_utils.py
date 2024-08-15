@@ -1,37 +1,62 @@
-import os
-import lzma
-import dill as pickle
+import pandas as pd
+
+from alpha import Alpha
+from typing import List, Dict
 
 
-def load_pickle(path: str):
+def create_alpha(
+    tickers: List[str], ticker_dfs: Dict[str, pd.DataFrame], window=60, use_rolling=True
+) -> Alpha:
     """
-    Loads and returns a Python object from a pickled file.
+    Creates an Alpha object with the given tickers and historical data.
 
     Args:
-        path (str): The file path to the pickled file.
+        tickers (List[str]): A list of ticker symbols.
+        ticker_dfs (Dict[str, pd.DataFrame]): A dictionary where the keys are tickers and the values are DataFrames with historical data.
+        window (int): The window size for calculating alpha and beta.
+        use_rolling (bool): Whether to use rolling calculations for alpha and beta.
 
     Returns:
-        Any: The Python object stored in the pickled file.
+        Alpha: An Alpha object initialized with the given parameters.
     """
-    with lzma.open(path, "rb") as fp:
-        file = pickle.load(fp)
-    return file
+    return Alpha(
+        insts=tickers,
+        dfs=ticker_dfs,
+        window=window,
+        use_rolling=use_rolling,
+    )
 
 
-def save_pickle(path: str, obj):
+def get_alpha_beta_df(alpha: Alpha):
     """
-    Saves a Python object to a file using pickle.
+    Retrieves the alpha and beta values from an Alpha object and returns them in a DataFrame.
 
     Args:
-        path (str): The file path where the object should be saved.
-        obj (Any): The Python object to be pickled and saved.
+        alpha (Alpha): The Alpha object containing alpha and beta data.
 
     Returns:
-        None
+        pd.DataFrame: A DataFrame with the last values of beta and alpha for each token.
     """
-    directory = os.path.dirname(path)
+    beta_data: Dict[str, pd.Series] = {}
+    alpha_data: Dict[str, pd.Series] = {}
 
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    with lzma.open(path, "wb") as fp:
-        pickle.dump(obj, fp)
+    for inst in alpha.insts:
+        beta_data[inst] = alpha.dfs[inst]["beta_eth"]
+        alpha_data[inst] = alpha.dfs[inst]["alpha_eth"]
+
+    beta_df = pd.concat(beta_data, axis=1)
+    beta_df.index = pd.to_datetime(beta_df.index)
+
+    alpha_df = pd.concat(alpha_data, axis=1)
+    alpha_df.index = pd.to_datetime(alpha_df.index)
+    beta_last_values = beta_df.iloc[-1]
+    alpha_last_values = alpha_df.iloc[-1]
+
+    data = {
+        token: {"Beta": beta_last_values[token], "Alpha": alpha_last_values[token]}
+        for token in beta_last_values.index
+    }
+    df = pd.DataFrame.from_dict(data, orient="index")
+    df = df.dropna()
+
+    return df

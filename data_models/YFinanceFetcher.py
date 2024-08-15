@@ -1,14 +1,14 @@
 import os
+import json
 import pytz
 import logging
 import yfinance
 import pandas as pd
 
 from datetime import datetime
-from typing import List, Tuple, Dict
-from data_models.DataFetcher import DataFetcher
-from utils.alpha_utils import load_pickle, save_pickle
+from typing import List, Tuple, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from utils.yfinance_fetcher_utils import load_pickle, save_pickle
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,13 +17,30 @@ logging.basicConfig(
 )
 
 
-class YFinanceFetcher(DataFetcher):
+class YFinanceFetcher:
 
     def __init__(self):
         """
         Initializes the YFinanceFetcher with a logger.
         """
         self.logger = logging.getLogger(__name__)
+        self.tickers = self.get_crypto_tickers()
+
+    def get_crypto_tickers(self) -> Optional[List[str]]:
+        """
+        Loads and returns a list of cryptocurrency tickers from a JSON file.
+
+        Returns:
+            list: Cryptocurrency tickers from the "instruments" key, or None if not found.
+        """
+        crypto_asset_config_path = os.path.join(
+            os.getcwd(), "config", "yfinance_crypto_asset_config.json"
+        )
+        with open(crypto_asset_config_path, "r") as f:
+            crypto_tickers = json.load(f)
+            if crypto_tickers["instruments"]:
+                return crypto_tickers["instruments"]
+        return None
 
     def get_history(
         self,
@@ -141,23 +158,20 @@ class YFinanceFetcher(DataFetcher):
         dataset_path = os.path.join(os.getcwd(), "Data", obj_path)
         dataset_exists = os.path.exists(dataset_path)
 
-        crypto_asset_config = "yfinance_crypto_asset_config.json"
-        tickers = super().get_crypto_tickers(crypto_asset_config)
-
         # If .obj file doesn't exists, download all data
         if not dataset_exists:
             new_tickers, new_dfs = self.get_histories(
-                tickers, start, end, granularity="1d"
+                self.tickers, start, end, granularity="1d"
             )
             new_ticker_dfs = {ticker: df for ticker, df in zip(new_tickers, new_dfs)}
-            save_pickle(dataset_path, (tickers, new_ticker_dfs))
+            save_pickle(dataset_path, (self.tickers, new_ticker_dfs))
             return new_tickers, new_ticker_dfs
         # If .obj file exists, load existing data
         else:
             old_tickers, old_ticker_dfs = load_pickle(dataset_path)
 
             # If we added new tickers to config file, then download history data for that tickers
-            new_tickers = list(set(tickers) - set(old_tickers))
+            new_tickers = list(set(self.tickers) - set(old_tickers))
             if new_tickers:
                 new_tickers, new_dfs = self.get_histories(
                     new_tickers, start, end, granularity="1d"
@@ -180,7 +194,7 @@ class YFinanceFetcher(DataFetcher):
             else:
                 start = last_date_index.to_pydatetime()
                 new_tickers, new_dfs = self.get_histories(
-                    tickers, start, end, granularity="1d"
+                    self.tickers, start, end, granularity="1d"
                 )
                 new_ticker_dfs = {
                     ticker: df for ticker, df in zip(new_tickers, new_dfs)
