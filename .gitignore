@@ -1,5 +1,3 @@
 env
 __pycache__
-Data/alpha_60_rolling_dfs.obj
-Data/alpha_365_rolling_dfs.obj
-Data/alpha_no_rolling_dfs.obj
+Data

@@ -8,7 +8,6 @@ import pandas as pd
 from datetime import datetime
 from typing import List, Tuple, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from utils.yfinance_fetcher_utils import load_pickle, save_pickle
 
 logging.basicConfig(
     level=logging.INFO,
@@ -142,70 +141,21 @@ class YFinanceFetcher:
         return tickers, dfs
 
     def get_ticker_dfs(
-        self, start: datetime, end: datetime, obj_path: str
+        self, start: datetime, end: datetime
     ) -> Tuple[List[str], Dict[str, pd.DataFrame]]:
         """
-        Retrieves historical data for tickers, either loading from or saving to a local file.
+        Retrieves historical data for tickers.
 
         Args:
             start (datetime): The start date for historical data.
             end (datetime): The end date for historical data.
-            obj_path (str): The path to the local .obj file for storing/loading data.
 
         Returns:
             Tuple[List[str], Dict[str, pd.DataFrame]]: A tuple containing a list of tickers and a dictionary of DataFrames with historical data.
         """
-        dataset_path = os.path.join(os.getcwd(), "Data", obj_path)
-        dataset_exists = os.path.exists(dataset_path)
+        new_tickers, new_dfs = self.get_histories(
+            self.tickers, start, end, granularity="1d"
+        )
+        new_ticker_dfs = {ticker: df for ticker, df in zip(new_tickers, new_dfs)}
 
-        # If .obj file doesn't exists, download all data
-        if not dataset_exists:
-            new_tickers, new_dfs = self.get_histories(
-                self.tickers, start, end, granularity="1d"
-            )
-            new_ticker_dfs = {ticker: df for ticker, df in zip(new_tickers, new_dfs)}
-            save_pickle(dataset_path, (self.tickers, new_ticker_dfs))
-            return new_tickers, new_ticker_dfs
-        # If .obj file exists, load existing data
-        else:
-            old_tickers, old_ticker_dfs = load_pickle(dataset_path)
-
-            # If we added new tickers to config file, then download history data for that tickers
-            new_tickers = list(set(self.tickers) - set(old_tickers))
-            if new_tickers:
-                new_tickers, new_dfs = self.get_histories(
-                    new_tickers, start, end, granularity="1d"
-                )
-                new_ticker_dfs = {
-                    ticker: df for ticker, df in zip(new_tickers, new_dfs)
-                }
-
-                for ticker in new_tickers:
-                    old_ticker_dfs[ticker] = new_ticker_dfs[ticker]
-
-                save_pickle(dataset_path, (list(old_ticker_dfs.keys()), old_ticker_dfs))
-            last_date_index = old_ticker_dfs["BTC-USD"].index[-1]
-            last_date = last_date_index.strftime("%Y-%m-%d")
-            today_date = datetime.now(pytz.utc).strftime("%Y-%m-%d")
-
-            # Do not fetch data more times for the same day
-            if last_date == today_date:
-                return list(old_ticker_dfs.keys()), old_ticker_dfs
-            else:
-                start = last_date_index.to_pydatetime()
-                new_tickers, new_dfs = self.get_histories(
-                    self.tickers, start, end, granularity="1d"
-                )
-                new_ticker_dfs = {
-                    ticker: df for ticker, df in zip(new_tickers, new_dfs)
-                }
-
-                for asset_pair in new_ticker_dfs:
-                    old_ticker_dfs[asset_pair] = old_ticker_dfs[asset_pair].drop(
-                        old_ticker_dfs[asset_pair].tail(1).index
-                    )
-                    old_ticker_dfs[asset_pair] = pd.concat(
-                        [old_ticker_dfs[asset_pair], new_ticker_dfs[asset_pair]]
-                    )
-                save_pickle(dataset_path, (list(old_ticker_dfs.keys()), old_ticker_dfs))
-                return list(old_ticker_dfs.keys()), old_ticker_dfs
+        return new_tickers, new_ticker_dfs

@@ -1,105 +1,15 @@
-import numpy as np
+import os
+import lzma
+import pytz
 import pandas as pd
+import dill as pickle
 import streamlit as st
-import plotly.express as px
-
-from typing import List
 import plotly.graph_objects as go
-from scipy.stats import gaussian_kde
-from plotly.subplots import make_subplots
-from utils.yfinance_fetcher_utils import load_pickle
 
-
-def show_alpha_vs_beta(df: pd.DataFrame):
-    """
-    Displays a scatter plot comparing Alpha vs Beta for all tokens.
-
-    Args:
-        df (pd.DataFrame): A DataFrame containing the Alpha and Beta values for each token.
-    """
-    hover_data = {"Token": df.index, "Alpha": True, "Beta": True}
-
-    high_beta_positive_alpha = df[(df["Beta"] > 1) & (df["Alpha"] > 0)]
-    top_5_tokens = high_beta_positive_alpha.nlargest(5, "Beta")
-
-    df["Category"] = df.index.isin(top_5_tokens.index)
-    df["Category"] = df["Category"].map({True: "Top 5 Tokens", False: "Other Tokens"})
-
-    color_discrete_map = {
-        "Top 5 Tokens": "#FF5733",
-        "Other Tokens": "#3498DB",
-    }
-
-    fig = px.scatter(
-        df,
-        x="Alpha",
-        y="Beta",
-        title="Alpha vs Beta for all tokens",
-        hover_data=hover_data,
-        height=550,
-        color="Category",
-        color_discrete_map=color_discrete_map,
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def show_kde(dfs: List[pd.DataFrame], labels: List[str], metrics: List[str]):
-    """
-    Displays KDE plots for multiple metrics across multiple DataFrames.
-
-    Args:
-        dfs (List[pd.DataFrame]): A list of DataFrames containing the metric values.
-        labels (List[str]): A list of labels for each DataFrame.
-        metrics (List[str]): A list of metrics to plot.
-        decimal_places (int): The number of decimal places for statistical annotations.
-    """
-    colors = ["aqua", "mediumorchid", "lightcoral"]
-    fig = make_subplots(rows=1, cols=2, subplot_titles=metrics)
-    decimal_places = 5
-    for metric_idx, metric in enumerate(metrics):
-        for index, (df, label) in enumerate(zip(dfs, labels)):
-            # Compute KDE using scipy
-            kde = gaussian_kde(df[metric].dropna())
-            x_values = np.linspace(df[metric].min(), df[metric].max(), 1000)
-            y_values = kde(x_values)
-
-            # Compute statistics
-            mean = df[metric].mean()
-            median = df[metric].median()
-            variance = df[metric].var()
-
-            # Add the KDE line to the subplot with hover information
-            fig.add_trace(
-                go.Scatter(
-                    x=x_values,
-                    y=y_values,
-                    mode="lines",
-                    name=f"{label} - {metric}",
-                    line=dict(color=colors[index]),
-                    hovertemplate=(
-                        f"<b>{label} - {metric}</b><br>"
-                        f"Value: %{{x}}<br>"
-                        f"Density: %{{y}}<br>"
-                        f"Mean: {mean:.{decimal_places}f}<br>"
-                        f"Median: {median:.{decimal_places}f}<br>"
-                        f"Variance: {variance:.{decimal_places}f}<br>"
-                        "<extra></extra>"
-                    ),
-                ),
-                row=1,
-                col=metric_idx + 1,
-            )
-
-    fig.update_layout(
-        xaxis_title="Value",
-        yaxis_title="Probability Density",
-        height=550,
-        title_text=f"Probability Density Distribution of Alpha and Beta",
-        showlegend=False,
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+from alpha import Alpha
+from datetime import datetime
+from typing import List, Tuple, Dict
+from data_models.YFinanceFetcher import YFinanceFetcher
 
 
 def show_timeseries_plot(tickers: List[str], dfs_path: str):
@@ -127,7 +37,7 @@ def show_timeseries_plot(tickers: List[str], dfs_path: str):
                     x=dfs[ticker].index,
                     y=dfs[ticker][columns[i]],
                     mode="lines",
-                    name=f"{ticker} Alpha",
+                    name=f"{ticker} {axis_names[i]}",
                 )
             )
 
@@ -141,3 +51,81 @@ def show_timeseries_plot(tickers: List[str], dfs_path: str):
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+
+def load_pickle(path: str):
+    """
+    Loads and returns a Python object from a pickled file.
+
+    Args:
+        path (str): The file path to the pickled file.
+
+    Returns:
+        Any: The Python object stored in the pickled file.
+    """
+    with lzma.open(path, "rb") as fp:
+        file = pickle.load(fp)
+    return file
+
+
+def save_pickle(path: str, obj):
+    """
+    Saves a Python object to a file using pickle.
+
+    Args:
+        path (str): The file path where the object should be saved.
+        obj (Any): The Python object to be pickled and saved.
+
+    Returns:
+        None
+    """
+    directory = os.path.dirname(path)
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    with lzma.open(path, "wb") as fp:
+        pickle.dump(obj, fp)
+
+
+def get_tickers_and_ticker_dfs() -> Tuple[List[str], Dict[str, pd.DataFrame]]:
+    """
+    Fetches tickers and their corresponding historical data from Yahoo Finance.
+
+    Returns:
+        Tuple[List[str], Dict[str, pd.DataFrame]]: A tuple containing a list of tickers and a dictionary where the keys are tickers and the values are DataFrames with historical data.
+    """
+    period_start = datetime(2023, 1, 1, tzinfo=pytz.utc)
+    period_end = datetime.now(pytz.utc)
+
+    data_fetcher = YFinanceFetcher()
+
+    tickers, ticker_dfs = data_fetcher.get_ticker_dfs(
+        start=period_start, end=period_end
+    )
+
+    return tickers, ticker_dfs
+
+
+def calculate_alpha(
+    tickers: List[str],
+    ticker_dfs: Dict[str, pd.DataFrame],
+    window=60,
+) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Calculates alpha and beta values for given tickers and stores the results.
+
+    Args:
+        tickers (List[str]): A list of ticker symbols.
+        ticker_dfs (Dict[str, pd.DataFrame]): A dictionary where the keys are tickers and the values are DataFrames with historical data.
+        window (int): The window size for calculating alpha and beta. By default is 60.
+
+    Returns:
+        Tuple[pd.DataFrame, List[str]]: A tuple containing a DataFrame with alpha and beta values, and a list of ticker symbols.
+    """
+    alpha = Alpha(
+        insts=tickers,
+        dfs=ticker_dfs,
+        window=window,
+    )
+    data_path = os.path.join(os.getcwd(), "Data", f"alpha_{window}_rolling_dfs.obj")
+    save_pickle(data_path, alpha.dfs)

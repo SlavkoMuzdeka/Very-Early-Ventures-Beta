@@ -1,7 +1,6 @@
 import logging
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 
 from typing import Tuple, List, Dict
 from pyfinance.ols import PandasRollingOLS
@@ -20,7 +19,6 @@ class Alpha:
         insts: List[str],
         dfs: Dict[str, pd.DataFrame],
         window: int,
-        use_rolling=True,
     ):
         """
         Initializes the Alpha class with given instruments, dataframes, and calculation settings.
@@ -29,12 +27,10 @@ class Alpha:
             insts (list): A list of instrument identifiers (e.g., cryptocurrency symbols).
             dfs (Dict[str, DataFrame]): A dictionary of pandas DataFrames with historical data for each instrument.
             window (int): The rolling window size for calculating alpha and beta.
-            use_rolling (bool): Flag to indicate whether to use rolling calculations (default is True).
         """
         self.insts = insts
         self.dfs = dfs
         self.window = window
-        self.use_rolling = use_rolling
         self.pre_compute()
         self.post_compute()
         self.logger = logging.getLogger(__name__)
@@ -80,27 +76,6 @@ class Alpha:
 
         return model_btc.alpha, model_btc.beta
 
-    def _get_alpha_beta_no_rolling(
-        self, inst: str, relative_to="ETH-USD"
-    ) -> Tuple[float, float]:
-        """
-        Calculates the alpha and beta without rolling for a given instrument relative to another.
-
-        Args:
-            inst (str): The instrument for which alpha and beta are calculated.
-            relative_to (str): The instrument relative to which alpha and beta are calculated (default is "ETH-USD").
-
-        Returns:
-            tuple: A tuple containing the alpha and beta values.
-        """
-        x_other, y = self._format_x_other_and_y(inst, relative_to)
-
-        # Fit OLS model
-        X = sm.add_constant(x_other)
-        model = sm.OLS(y, X).fit()
-
-        return model.params.iloc[0], model.params.iloc[1]
-
     def _format_x_other_and_y(
         self, inst: str, relative_to: str
     ) -> Tuple[pd.Series, pd.Series]:
@@ -134,10 +109,7 @@ class Alpha:
         """
         for inst in self.insts:
             # Calculate alpha & beta relative to ETH
-            if self.use_rolling:
-                alpha, beta = self._get_alpha_beta(inst, self.window)
-            else:
-                alpha, beta = self._get_alpha_beta_no_rolling(inst)
+            alpha, beta = self._get_alpha_beta(inst, self.window)
 
             self.dfs[inst]["alpha_eth"] = alpha
             self.dfs[inst]["beta_eth"] = beta
