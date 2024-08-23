@@ -41,6 +41,11 @@ def show_timeseries_plot(tickers: List[str], dfs_path: str):
                 )
             )
 
+    max_beta_value = max(dfs[ticker]["beta_eth"].max() for ticker in tickers)
+    min_beta_value = min(dfs[ticker]["beta_eth"].min() for ticker in tickers)
+    min_beta_value = 0 if min_beta_value > 0 else min_beta_value
+    figures[0].update_layout(yaxis_range=[min_beta_value, max_beta_value])
+
     for i, fig in enumerate(figures):
         fig.update_layout(
             title=f"{axis_names[i]} Values Over Time",
@@ -118,9 +123,6 @@ def calculate_alpha(
         tickers (List[str]): A list of ticker symbols.
         ticker_dfs (Dict[str, pd.DataFrame]): A dictionary where the keys are tickers and the values are DataFrames with historical data.
         window (int): The window size for calculating alpha and beta. By default is 60.
-
-    Returns:
-        Tuple[pd.DataFrame, List[str]]: A tuple containing a DataFrame with alpha and beta values, and a list of ticker symbols.
     """
     alpha = Alpha(
         insts=tickers,
