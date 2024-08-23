@@ -20,6 +20,8 @@ if "created_alphas" not in st.session_state:
         tickers, ticker_dfs = get_tickers_and_ticker_dfs()
 
         calculate_alpha(tickers, ticker_dfs)
+        calculate_alpha(tickers, ticker_dfs, window=90)
+        calculate_alpha(tickers, ticker_dfs, window=180)
         calculate_alpha(tickers, ticker_dfs, window=365)
 
         st.session_state.tickers = tickers
@@ -28,19 +30,22 @@ if "created_alphas" not in st.session_state:
 
 selected_period = st.selectbox(
     "Select a period",
-    ["60 Days Rolling", "365 Days Rolling"],
+    ["60 Days Rolling", "90 Days Rolling", "180 Days Rolling", "365 Days Rolling"],
 )
 
 dataset_mapping = {
     "60 Days Rolling": os.path.join(os.getcwd(), "Data", "alpha_60_rolling_dfs.obj"),
+    "90 Days Rolling": os.path.join(os.getcwd(), "Data", "alpha_90_rolling_dfs.obj"),
+    "180 Days Rolling": os.path.join(os.getcwd(), "Data", "alpha_180_rolling_dfs.obj"),
     "365 Days Rolling": os.path.join(os.getcwd(), "Data", "alpha_365_rolling_dfs.obj"),
 }
 
 st.divider()
 tokens: List[str] = st.session_state.tickers
+tokens = sorted(tokens)
 tokens = [token for token in tokens if not token == "ETH-USD"]
 
 selected_tokens = st.multiselect(
-    "Select crypto asset", default="BTC-USD", options=tokens, max_selections=5
+    "Select crypto asset", default="AAVE-USD", options=tokens, max_selections=5
 )
 show_timeseries_plot(selected_tokens, dataset_mapping.get(selected_period))

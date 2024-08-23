@@ -27,8 +27,8 @@ def show_timeseries_plot(tickers: List[str], dfs_path: str):
     dfs = load_pickle(dfs_path)
 
     figures = [go.Figure(), go.Figure()]
-    columns = ["alpha_eth", "beta_eth"]
-    axis_names = ["Alpha", "Beta"]
+    columns = ["beta_eth", "alpha_eth"]
+    axis_names = ["Beta", "Alpha"]
 
     for i, fig in enumerate(figures):
         for ticker in tickers:
